@@ -37,7 +37,7 @@ const TIERS: Tier[] = ["off", "low", "medium", "high"];
  * GPU benchmark lookup picks low, medium or high (or off for very weak
  * GPUs). ?tier=off|low|medium|high overrides it for testing.
  */
-export function ExperienceRoot() {
+export function ExperienceRoot({ loadingLabel }: { loadingLabel: string }) {
   const gate = useExperienceGate();
   const setCapability = useExperience((s) => s.setCapability);
   const capability = useExperience((s) => s.capability);
@@ -138,7 +138,9 @@ export function ExperienceRoot() {
     };
   }, [status, tier]);
 
-  if (tier === "off" || !started) return null;
+  // Failed (load error, render error or lost WebGL context): drop the canvas
+  // entirely so the static layer is all that remains.
+  if (tier === "off" || !started || status === "failed") return debug ? <DebugPanel /> : null;
 
   return (
     <>
@@ -151,7 +153,7 @@ export function ExperienceRoot() {
           <MotionLayer />
         </ExperienceBoundary>
       </div>
-      {status !== "failed" && <LoadingIndicator />}
+      <LoadingIndicator label={loadingLabel} />
       {debug && <DebugPanel />}
     </>
   );

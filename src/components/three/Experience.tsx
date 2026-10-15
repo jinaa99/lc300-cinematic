@@ -103,8 +103,11 @@ export default function Experience() {
       // nothing on weak devices. Stopped when the tab is hidden, the page
       // has scrolled past <main>, or the closing fade has covered it.
       frameloop={hidden ? "never" : tier === "low" ? "demand" : "always"}
-      onCreated={({ invalidate }) => {
+      onCreated={({ gl, invalidate }) => {
         motionMode.invalidate = () => invalidate();
+        // GPU reset, driver crash or too many contexts: hand back to the
+        // static layer (ExperienceRoot unmounts the canvas, posters return).
+        gl.domElement.addEventListener("webglcontextlost", () => setStatus("failed"), { once: true });
       }}
       dpr={DPR[tier] as number | [number, number]}
       // Low: native MSAA. Medium/high: the composer's SMAA instead.

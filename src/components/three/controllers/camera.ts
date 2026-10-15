@@ -48,7 +48,13 @@ export function createCameraController() {
   const keys = resolvedKeys();
   const positions = new CatmullRomCurve3(keys.map((k) => new Vector3(...k.position)), false, "centripetal");
   const targets = new CatmullRomCurve3(keys.map((k) => new Vector3(...k.target)), false, "centripetal");
-  const damped = { t: 0, fov: keys[0].look.fov, shiftX: keys[0].look.shiftX, shiftY: keys[0].look.shiftY };
+  const damped = {
+    t: 0,
+    fov: keys[0].look.fov,
+    shiftX: keys[0].look.shiftX,
+    shiftY: keys[0].look.shiftY,
+    stackY: keys[0].look.stackY,
+  };
   const aim = new Vector3(...keys[0].target);
   const position = new Vector3();
   const target = new Vector3();
@@ -62,6 +68,7 @@ export function createCameraController() {
     Math.abs(damped.fov - motion.fov) > 1e-3 ||
     Math.abs(damped.shiftX - motion.shiftX) > 1e-4 ||
     Math.abs(damped.shiftY - motion.shiftY) > 1e-4 ||
+    Math.abs(damped.stackY - motion.stackY) > 1e-4 ||
     aim.distanceToSquared(target) > 1e-8;
 
   return {
@@ -92,11 +99,13 @@ export function createCameraController() {
         damped.fov = motion.fov;
         damped.shiftX = motion.shiftX;
         damped.shiftY = motion.shiftY;
+        damped.stackY = motion.stackY;
       } else {
         easing.damp(damped, "t", motion.path, SMOOTH, dt);
         easing.damp(damped, "fov", motion.fov, SMOOTH, dt);
         easing.damp(damped, "shiftX", motion.shiftX, SMOOTH, dt);
         easing.damp(damped, "shiftY", motion.shiftY, SMOOTH, dt);
+        easing.damp(damped, "stackY", motion.stackY, SMOOTH, dt);
       }
 
       positions.getPoint(damped.t, position);
@@ -119,7 +128,7 @@ export function createCameraController() {
       }
       const stacked = width < STACKED_WIDTH ? weight : 0;
       const shiftX = damped.shiftX * (1 - stacked);
-      const shiftY = MathUtils.lerp(damped.shiftY, -0.22, stacked);
+      const shiftY = MathUtils.lerp(damped.shiftY, damped.stackY, stacked);
 
       camera.position.copy(position);
       camera.lookAt(aim);

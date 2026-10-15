@@ -1,7 +1,7 @@
 import { StickyChapter } from "@/components/layout/StickyChapter";
-import { getCopy } from "@/content/copy";
+import { getServerCopy } from "@/content/copy/server";
 
 /** Exterior design. 3D chapter: the canvas shows through. */
-export function DesignSection() {
-  return <StickyChapter id="design" copy={getCopy().design} length={200} />;
+export async function DesignSection() {
+  return <StickyChapter id="design" copy={(await getServerCopy()).design} length={200} />;
 }

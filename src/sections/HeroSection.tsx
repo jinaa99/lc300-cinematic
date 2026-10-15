@@ -1,15 +1,15 @@
 import { MediaFrame } from "@/components/media/MediaFrame";
 import { Eyebrow } from "@/components/ui/Eyebrow";
-import { getCopy } from "@/content/copy";
+import { getServerCopy } from "@/content/copy/server";
 import { mediaSlots } from "@/content/media";
 
 /**
  * Opening frame. Static by design: it must read well before any JS runs.
- * Scroll choreography will be layered on later from a client "scene" wrapper
- * (see docs/ARCHITECTURE.md) without changing this markup.
+ * The 3D layer behind it (ExperienceRoot) takes over from the poster once
+ * live, without changing this markup (see docs/ARCHITECTURE.md).
  */
-export function HeroSection() {
-  const copy = getCopy().hero;
+export async function HeroSection() {
+  const copy = (await getServerCopy()).hero;
   return (
     <section
       id="hero"
@@ -43,7 +43,11 @@ export function HeroSection() {
         </h1>
 
         <div className="mt-10 flex items-end justify-between gap-10">
-          <p className="max-w-copy text-lede text-silver-300">{copy.lede}</p>
+          <div className="max-w-copy">
+            <p className="text-lede text-silver-300">{copy.lede}</p>
+            {/* The model is CC BY-NC-SA: the concept status is stated above the fold, not only in the footer. */}
+            <p className="mt-6 text-eyebrow leading-normal uppercase text-silver-500">{copy.concept}</p>
+          </div>
 
           <div aria-hidden className="hidden shrink-0 flex-col items-center gap-4 md:flex">
             <span className="text-eyebrow uppercase text-silver-500 [writing-mode:vertical-rl]">

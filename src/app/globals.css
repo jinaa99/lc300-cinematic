@@ -118,6 +118,10 @@
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
+    /* One brushed band per line, so a three-line title doesn't fade to grey
+       on its last line (over the steppe sky that line got hard to read).
+       Browsers without the lh unit drop this and keep one band per block. */
+    background-size: 100% 1lh;
   }
 }
 

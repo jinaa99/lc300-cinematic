@@ -29,7 +29,7 @@ The experience layer never replaces server markup. It only hides poster images (
 </body>
 ```
 
-- `ExperienceRoot` (`src/components/experience/ExperienceRoot.tsx`, `"use client"`) is imported by `src/app/layout.tsx`. It decides whether the experience may run (see "Capability gate") and only then renders `Experience` through `next/dynamic(() => import(...), { ssr: false })`. `ssr: false` is only allowed inside a Client Component, which is why the dynamic import lives here and not in the layout.
+- `ExperienceRoot` (`src/components/experience/ExperienceRoot.tsx`, `"use client"`) is rendered by the home page (`src/app/[lang]/page.tsx`), before `<main>`, so the 404 and error pages never start the 3D layer. It decides whether the experience may run (see "Capability gate") and only then renders `Experience` through `next/dynamic(() => import(...), { ssr: false })`. `ssr: false` is only allowed inside a Client Component, which is why the dynamic import lives here and not in the layout.
 - Because the import is behind the gate, devices that fail it never download `three` or the model.
 - 3D chapters have transparent backgrounds so the canvas shows through. Non-3D sections and the footer use opaque `bg-ink-950`, which covers the canvas.
 - The canvas uses `100lvh` (large viewport height) so mobile browser bars appearing or disappearing don't resize the drawing buffer.
@@ -59,7 +59,8 @@ Two steps, in `ExperienceRoot`:
 3. `LoadingIndicator` shows a hairline silver bar and a percentage on an ink strip at the bottom edge, from drei's `useProgress`. The hero's server markup stays visible the whole time.
 4. When everything has loaded, `LiveSignal` compiles every shader up front (`renderer.compileAsync`), waits two frames, then sets `<html data-experience="live">`.
 5. CSS fades the posters (`[data-media-role="poster"]`) and the loading bar. The posters stay in the DOM, so their alt text stays in the accessibility tree.
-6. On an error, `data-experience` is removed and the posters come back.
+6. On an error (model or HDRI load failure, a render error, or a lost WebGL context), the status becomes `failed`: the canvas unmounts, `data-experience` is removed, the posters come back and the colour picker falls back to its disabled list.
+7. The experience runs on the home route only. The 404 and error pages don't start it.
 
 **Frame loop.** Medium and high render continuously while the canvas can be seen; low renders on demand. On demand means scroll, input and paint changes call `motionMode.invalidate`, and `KeepAlive` keeps requesting frames while any controller reports itself busy. Rendering stops entirely (`"never"`) when any of these is true:
 
@@ -77,12 +78,12 @@ Per-frame values don't go through React. They live in the motion proxy (below).
 
 - **Shot list as data.** `src/content/cameraShots.ts` holds the keys. Each key pins a camera position, a target and a `Look` (fov, lens shift, steppe/night blend, environment, rim, lamps, tail lamps, letterbox, depth of field, wheel spin, vehicle travel, turntable, dust, glass, fade, portrait weight) to a scroll point: `chapter` plus `at`. `at` runs 0→1 across the section's pinned range; negative values are waypoints during the section's entry. Each key inherits the previous key's look.
 - **Motion proxy.** `src/lib/motion/state.ts` exports `motion`, a plain object (`path` + `Look`), plus `intro` (the load-in), `motionMode`, `turntableInput` and `cameraProbe`. Nothing in it triggers a render.
-- **Master timeline.** `src/components/motion/ScrollDirector.tsx` builds one GSAP timeline whose time is in scroll pixels. Each key's tween lands exactly on its section, and the timeline is scrubbed over the whole page with `ScrollTrigger` (`scrub: true`). Eases come from `src/lib/motion/tokens.ts` via `CustomEase`. The timeline is rebuilt on resize and once fonts load. GSAP plugins are registered once, in `src/components/motion/gsap.ts`. Import GSAP from there.
+- **Master timeline.** `src/components/motion/ScrollDirector.tsx` builds one GSAP timeline whose time is in scroll pixels. Each key's tween lands exactly on its section, and the timeline is scrubbed over the whole page with `ScrollTrigger` (`scrub: true`). Eases come from `src/lib/motion/tokens.ts` via `CustomEase`. The timeline is rebuilt on resize and once fonts load. On touch screens a height-only resize (the browser toolbar showing or hiding) doesn't rebuild it, matching ScrollTrigger's own `ignoreMobileResize`. GSAP plugins are registered once, in `src/components/motion/gsap.ts`. Import GSAP from there.
 - **Smoothness without a smooth-scroll library.** Scroll moves the proxy instantly; the canvas eases toward it every frame with `maath/easing`. The camera's curve parameter is damped and evaluated on a centripetal `CatmullRomCurve3` through every key, so the camera stays exactly on the authored path. Damping the position instead would cut corners and clip inside the cabin. The look-at point uses `damp3`.
 - **Clipping check.** `npm run check:camera` samples the same curve and fails if any point comes within 0.1 m of the model (glass excluded; glass hides while the camera passes through it). The Interior shot enters through the windshield on the driver's side, clear of the mirror, and leaves the same way. The cabin is too tight (≤ 0.13 m) to exit through the tailgate. Run the check after editing keys. The camera near plane is 5 cm.
 - **Per-frame controllers.** `src/components/three/controllers/` holds `camera`, `vehicle` (travel, wheel roll and spin, turntable, front and tail lamps, glass), `studio` (studio → steppe dusk → night blend of reflections, backplate, fog, floor and lightformers) and `dust`. They are plain modules, so three.js objects are mutated outside React's render rules (the React Compiler lint forbids mutating hook values). Components only wire them up in `useFrame`.
 - **Environment blend.** The reflection environment (`ReflectionEnvironment.tsx`) is a virtual scene: a studio HDRI sphere, a steppe HDRI sphere and unlit softbox cards, with opacities from the proxy. It is baked into a cube map only when steppe, night, rim or the load-in change. The bake forces `autoClear` on, because the effect composer turns it off; without that, the faces accumulate and the reflections brighten. The camera sees ink in the studio and the steppe backplate outside. Fog and floor colours are sampled from the backplate.
-- **Overlays.** The 2.39:1 letterbox (landscape only) and the fade to ink are DOM layers inside the fixed 3D layer, under the page text, updated on GSAP's ticker (`FrameOverlays.tsx`).
+- **Overlays.** The 2.39:1 letterbox (landscape only, currently unused: the hero bars cut through the title block) and the fade to ink are DOM layers inside the fixed 3D layer, under the page text, updated on GSAP's ticker (`FrameOverlays.tsx`).
 - **Turntable.** `TurntableControl.tsx` in the Colour chapter is a drag area plus arrow keys (`role="slider"`), independent of scroll. It weighs in only while the proxy's `turntable` is up.
 - **Reduced motion.** With the default gate the 3D layer doesn't load at all. If it is forced on (`?tier=`), the director builds no timeline. Each chapter snaps to its settled frame (its last key) without damping, and nothing auto-rotates.
 - **Authoring.** With `?debug`, the leva "Camera" folder has "free (orbit)" and "copy camera". Copy camera puts `{ position, target, look: { fov } }` on the clipboard, ready for a key.
@@ -93,7 +94,7 @@ Per-frame values don't go through React. They live in the motion proxy (below).
   - `dpr` is `[1, 2]` on the high tier and 1 on the low tier.
   - Output is sRGB, with AgX tone mapping by default (ACES Filmic is selectable).
   - The camera follows the shot list (`CameraDirector` → `controllers/camera.ts`). The lens shift (`setViewOffset`) recomposes the frame without tilting the camera. Portrait viewports pull back, widen and lift the subject, except inside the cabin.
-  - `frameloop` is `"always"`, or `"never"` while the tab is hidden. The canvas is always on screen now: the page scrolls over it.
+  - `frameloop` is `"always"` on medium and high and `"demand"` on low, and `"never"` while the canvas can't be seen (see "Frame loop" above).
   - `PerformanceMonitor` steps the tier down once.
 - `Lc300.tsx` loads the model with `useGLTF`, with Draco off and Meshopt plus KTX2 decoders served from `/basis/`. It applies `materials.ts` and follows the store for paint, lamps and badges.
 - `materials.ts` upgrades every glTF material to `MeshPhysicalMaterial` and tunes it by name:
@@ -101,18 +102,20 @@ Per-frame values don't go through React. They live in the motion proxy (below).
   - Glass: transmission on the high tier only.
   - Chrome (badge, grille): metalness 1, roughness 0.12.
   - Trim: metalness comes from base-colour luminance, so the light swatches read as chrome and the dark ones as gloss black.
-  - Rim: roughness 0.25.
+  - Rim: machined silver (#c3c6ca, roughness 0.3), not mirror chrome.
+  - Chassis: trim-atlas parts under the `suspension` node get a dark clone (`trim_chassis`), so the atlas's chrome swatches don't flare behind the wheels.
   - Tyre: roughness 0.9, with a stronger normal map.
 - `Studio.tsx` builds the studio:
   - The reflection environment is a virtual studio rendered once into a cube map. The HDRI (Poly Haven Studio Small 09) is the dimmed room. Lightformers act as softboxes: overhead, tall side cards, a sill kicker, a front card and a rim ring. The raw HDRI on its own lights everything evenly and flattens the paint.
   - The floor is a reflector on the high tier and a plain dark floor on the low tier. Fog uses the `ink-950` token.
+  - **Light pool.** A shader patch on whichever floor material is active (`addLightPool` in `controllers/studio.ts`, re-applied if the tier swaps the material) fades the floor to black by distance from the vehicle and by view angle below the horizon. With a low camera, fading by distance alone squeezes the falloff into a hard line under the horizon; the angle term turns it into a seamless cyclorama. Both open up outside the studio.
   - `ContactShadows` are baked once when the experience goes live, inside the vehicle group, so the shadow travels and turns with the vehicle. **Keep it at y=0.** Its blur pass draws a plane at the world origin from the shadow camera, and raising the component even 2 mm blanks the shadow.
 - `Effects.tsx` (medium and high) runs SMAA instead of MSAA, then bloom (threshold 1.6, mipmap blur), tone mapping, vignette and grain (opacity 0.03). The high tier adds depth of field. Every strength comes from the shot list: `dof` with its focus point (non-zero only in Light and Interior), `bloom`, `vignette` and `noise`.
 - **Handheld.** A simplex-noise rotation of at most 0.15° (`handheld` in the shot list, lowered inside the cabin), applied after the camera aims. It is off on the low tier and in reduced motion.
-- **Narrow screens.** The shots are framed for 16:9. On narrower screens the camera keeps the 16:9 horizontal field: the vertical fov widens up to 58° and the camera pulls back for the rest, so the whole vehicle stays in frame. On stacked (phone) layouts the subject moves to the upper half. `portrait` in the shot list weights this, and it is 0 inside the cabin. `npm run check:camera` also checks the path at a phone aspect. The composer disables renderer tone mapping while active, so tone mapping is applied inside the composer.
+- **Narrow screens.** The shots are framed for 16:9. On narrower screens the camera keeps the 16:9 horizontal field: the vertical fov widens up to 58° and the camera pulls back for the rest, so the whole vehicle stays in frame. On stacked (phone) layouts the subject moves up by the shot's `stackY` (the hero sits lower, closer to its title). `portrait` in the shot list weights this, and it is 0 inside the cabin. `npm run check:camera` also checks the path at a phone aspect. The composer disables renderer tone mapping while active, so tone mapping is applied inside the composer.
 - URL switches:
   - `?debug` opens the leva look-dev panel (`DebugPanel.tsx`, loaded only then) and gives pointer input to an orbit camera.
-  - `?tier=off|low|high` forces a tier.
+  - `?tier=off|low|medium|high` forces a tier.
 - `scripts/screenshot.mjs <url> <out.png>` screenshots a page in headless Chrome once `data-experience="live"` is set.
 
 ## Model contract (`public/models/lc300.glb`)
@@ -127,12 +130,24 @@ The model is built by `npm run model:build` (see ASSETS.md, "Pipeline"). Runtime
 
 ## Chapters and copy
 
-- `src/app/page.tsx` renders the chapters in order: Hero, Design (#design), Light, Terrain, Interior, Performance, Colour and Contact. `siteConfig.nav` lists the same ids. The header shows the nav from `lg` up.
+- `src/app/[lang]/page.tsx` renders the chapters in order: Hero, Design (#design), Light, Terrain, Interior, Performance, Colour and Contact, then the vehicle information appendix (#specifications). `siteConfig.nav` lists the same ids. The header shows the nav inline from `xl` up. Below `xl`, `MobileNav` (a client island) shows it as a disclosure menu: Escape closes it and returns focus, and choosing a chapter closes it.
+- The film ends at Contact with a fade to ink. The vehicle information (`VehicleInfoSection`) follows as an opaque section outside the shot list, so it changes no camera keys, and the canvas has stopped rendering by then.
 - Every chapter after the hero uses `StickyChapter` (`src/components/layout/StickyChapter.tsx`), a Server Component. Each chapter is a 150–250vh scroll track with its eyebrow, title and body pinned (`position: sticky`). The extra track length is room for the camera moves to come.
   - Text sits in the left column from `md` up and at the bottom on phones. The scrim follows the text.
   - All chapters are transparent over the 3D layer, with a scrim behind the text.
-- Copy lives in `src/content/copy/` (`en.ts`, `mn.ts`, typed by `SiteCopy`). Components call `getCopy()`, which returns `defaultLocale` (`en`). `mn` is complete but not routed yet: adding a locale segment is a routing change only. Copy states no vehicle facts. Figures come only from `vehicleSpecs`, with their source.
-- Colour (`ColourPicker.tsx`) is the only client island in the chapters. It writes a finish from `src/content/finishes.ts` to the store. Without the live 3D layer it renders as a disabled, labelled list.
+- Copy lives in `src/content/copy/` (`en.ts`, `mn.ts`, typed by `SiteCopy`). Copy states no vehicle facts. Figures and equipment come only from `src/content/vehicle.ts`, with their source, market and edition; their labels are translated there (`Localized`), next to the fact.
+
+## Languages
+
+- Every route lives under `src/app/[lang]` (root layout with `<html lang>`, `generateStaticParams` for `en` and `mn`). Both locales prerender as static HTML.
+- English is the default and has no prefix. `src/proxy.ts` rewrites `/` to `/en`, redirects `/en/…` to the unprefixed URL, and serves `/mn/…` as is. A catch-all (`[lang]/[...rest]`) sends unknown paths to the localized `not-found.tsx`.
+- Server Components read the locale with `getLocale()` / `getServerCopy()` (`src/content/copy/server.ts`, built on `next/root-params`). Client islands get their strings as props; `error.tsx` reads `useParams()`.
+- `LanguageSwitcher` (header) is a pair of plain links, so it works without JavaScript. With JavaScript it keeps the current `#chapter` and query, and sets the `lc300-locale` cookie. The proxy reads the cookie only when `/` is opened, to send a returning visitor back to `/mn`. Nothing is guessed from `Accept-Language`. The URL is the source of truth, so server HTML and hydration always match.
+- Switching language, the header logo and the 404 home link are full document loads, not `next/link` navigations. With Cache Components the router keeps the previous page mounted (hidden), which would leave two `<main>` elements and duplicate chapter ids in the DOM.
+- Metadata per locale: title, description, `og:locale`, canonical and `hreflang` alternates (`en`, `mn`, `x-default`).
+- Fonts load `latin`, `cyrillic` and `cyrillic-ext`. Mongolian Ө ө Ү ү are only in `cyrillic-ext`.
+- Colour (`ColourPicker.tsx`) is the only client island in the chapters. It writes a finish from `src/content/finishes.ts` to the store. It is a radio group with a roving tab stop (arrow keys, Home, End), 44 px targets, a hover-preview ring and a readout of the selected name. Without the live 3D layer it renders as a disabled, labelled list (pulsing while loading, dimmed when unavailable), and its note says which. `TurntableControl.tsx` adds visible step buttons under the swatches and, from `md` up, a drag cue over the vehicle until the first turn. The hint text follows the pointer type (touch: drag only).
+- `src/app/[lang]/error.tsx` and `src/app/[lang]/not-found.tsx` render in the site's tokens inside the root layout, in the active language. Their copy is in `SiteCopy` (`error`, `notFound`).
 - Every chapter is now a 3D chapter (transparent). `StickyChapter` uses `items-center-safe`, so content taller than the viewport starts below the header.
 
 ## Design tokens

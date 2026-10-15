@@ -25,7 +25,9 @@ Independent design concept. Not affiliated with Toyota Motor Corporation. Not fo
 
 ```
 src/
-  app/            Routes, root layout, metadata, fonts, global tokens
+  app/[lang]/     Routes per locale (/ English, /mn Mongolian), root layout, metadata, fonts
+  app/            globals.css (design tokens)
+  proxy.ts        Locale routing (see docs/ARCHITECTURE.md, "Languages")
   sections/       Full-width page chapters (HeroSection, …)
   components/
     layout/       Site chrome: header, footer
@@ -46,11 +48,14 @@ docs/
 
 ## Content rules
 
-- No vehicle specification, price, inventory, dealer detail or testimonial appears unless it is sourced. `VehicleSpec` requires a `source` that records the market it applies to.
-- No media appears unless it is licensed. `ImageAsset` requires a `license`. Until a file is supplied, `MediaFrame` renders a labelled pending frame instead of a stand-in visual.
-- The site is `noindex` while it remains a concept.
+- No vehicle specification, price, inventory, dealer detail or testimonial appears unless it is sourced. `VehicleSpec` and `VehicleFeature` require a `source` that records the market and the document edition. Editorial copy (`src/content/copy`) states no vehicle facts.
+- English is the default language (`/`); Mongolian is at `/mn`. Both are complete; every `SiteCopy` key is required for each locale.
+- No media appears unless it is licensed. `ImageAsset` requires a `license` and an `origin` (`photograph` or `render`). Until a file is supplied, `MediaFrame` renders a pending frame instead of a stand-in visual: labelled with the slot id and brief in development, a plain studio tone in production.
+- The site is `noindex` while it remains a concept. It is labelled as a non-commercial concept in the hero and the footer, because the 3D model is CC BY-NC-SA 4.0. See "Commercial use" in `docs/ASSETS.md` before changing that.
 
-## Set `NEXT_PUBLIC_SITE_URL` in production
+## Environment
 
-It is used as `metadataBase`.
-# lc300-cinematic
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | Canonical origin, used as `metadataBase`. Set it in production. |
+| `NEXT_PUBLIC_CONTACT_HREF` | Contact link for the closing chapter: a `mailto:` or `https://` URL. Unset, the chapter says contact details will follow. A malformed value fails the build. Never a sales or lead form. |

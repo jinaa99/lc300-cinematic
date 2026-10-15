@@ -79,14 +79,25 @@ const tunings: Record<string, Tuning> = {
     m.metalnessMap = m.map;
   },
   rim: (m) => {
-    constantSurface(m, 0.25, 1);
-    m.color.set("#d9dbde");
+    // Machined/painted silver rather than mirror chrome: slightly darker and
+    // softer, so the spokes don't flare against the dark tyre.
+    constantSurface(m, 0.3, 1);
+    m.color.set("#c3c6ca");
   },
   tyre: (m) => {
     constantSurface(m, 0.9, 0);
     // Push the sidewall and tread relief (keeps the sign GLTFLoader set).
     m.normalScale.multiplyScalar(1.6);
     m.envMapIntensity = 0.6;
+  },
+  // Trim-atlas parts on the suspension (a clone, see CHASSIS_PARTS). The
+  // atlas's light swatches would make them chrome; under the arches they
+  // read as bright clutter behind the wheels. Dark, worn metal instead.
+  trim_chassis: (m) => {
+    constantSurface(m, 0.65, 0.4);
+    m.metalnessMap = null;
+    m.color.set("#2a2b2e");
+    m.envMapIntensity = 0.5;
   },
   lamp: (m) => {
     // Intensity comes from the store (applyLamps).
@@ -128,6 +139,10 @@ function inRearPart(object: Object3D) {
 
 const tailClones = new WeakMap<MeshPhysicalMaterial, MeshPhysicalMaterial>();
 
+/** Parts whose trim material is chassis hardware, not exterior chrome. */
+const CHASSIS_PARTS = /^suspension$/;
+const chassisClones = new WeakMap<MeshPhysicalMaterial, MeshPhysicalMaterial>();
+
 /**
  * Upgrades and tunes every material under `root` in place. Safe to call
  * again (a tier change re-tunes the cached physical materials).
@@ -148,6 +163,7 @@ export function applyMaterials(root: Object3D, tier: Tier): MaterialHandles {
     if (!(object instanceof Mesh)) return;
     const mesh = object;
     const rear = inRearPart(mesh);
+    const chassis = CHASSIS_PARTS.test(mesh.name) || CHASSIS_PARTS.test(mesh.parent?.name ?? "");
     const convert = (material: Material) => {
       let physical = upgraded.get(material) ?? (material instanceof MeshPhysicalMaterial ? material : null);
       if (!physical) {
@@ -162,6 +178,20 @@ export function applyMaterials(root: Object3D, tier: Tier): MaterialHandles {
         register(physical);
       }
       if (physical.name === "glass" && !handles.glassMeshes.includes(mesh)) handles.glassMeshes.push(mesh);
+      if (chassis && (physical.name === "trim" || physical.name === "trim_chassis")) {
+        let dark = physical.name === "trim_chassis" ? physical : chassisClones.get(physical);
+        if (!dark) {
+          dark = physical.clone();
+          dark.name = "trim_chassis";
+          chassisClones.set(physical, dark);
+        }
+        if (!seen.has(dark)) {
+          tunings.trim_chassis(dark, tier);
+          dark.needsUpdate = true;
+          register(dark);
+        }
+        return dark;
+      }
       if (rear && (physical.name === "lamp" || physical.name === "lamp_rear")) {
         let tail = physical.name === "lamp_rear" ? physical : tailClones.get(physical);
         if (!tail) {

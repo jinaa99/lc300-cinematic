@@ -1,7 +1,7 @@
 import { StickyChapter } from "@/components/layout/StickyChapter";
-import { getCopy } from "@/content/copy";
+import { getServerCopy } from "@/content/copy/server";
 
 /** Lamps and low light. 3D chapter. */
-export function LightSection() {
-  return <StickyChapter id="light" copy={getCopy().light} length={150} />;
+export async function LightSection() {
+  return <StickyChapter id="light" copy={(await getServerCopy()).light} length={150} />;
 }

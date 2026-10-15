@@ -1,7 +1,7 @@
 import { StickyChapter } from "@/components/layout/StickyChapter";
-import { getCopy } from "@/content/copy";
+import { getServerCopy } from "@/content/copy/server";
 
 /** The cabin. 3D chapter. */
-export function InteriorSection() {
-  return <StickyChapter id="interior" copy={getCopy().interior} length={200} />;
+export async function InteriorSection() {
+  return <StickyChapter id="interior" copy={(await getServerCopy()).interior} length={200} />;
 }

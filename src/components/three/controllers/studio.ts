@@ -6,6 +6,7 @@ import {
   type Mesh,
   type MeshBasicMaterial,
   type Scene,
+  Vector3,
   type WebGLRenderer,
 } from "three";
 import { intro, motion } from "@/lib/motion/state";
@@ -18,6 +19,47 @@ import { intro, motion } from "@/lib/motion/state";
  */
 const STEPPE_FOG = new Color("#6f5a5c");
 const STEPPE_GROUND = new Color("#3b2a26");
+
+/**
+ * Floor light pool: x..y, metres from the vehicle, where the floor fades
+ * to black; z, how far below the horizon (sine of the view angle) the
+ * floor is fully lit. Distance alone can't soften the far edge: with the
+ * camera this low, everything beyond the vehicle is squeezed into a few
+ * pixels under the horizon, which read as a hard line. Fading by view angle
+ * turns that into a soft cyclorama falloff. Outside the studio both are
+ * opened up, and the fog meets the backplate instead.
+ */
+const POOL_STUDIO = new Vector3(4.5, 14, 0.06);
+const POOL_STEPPE = new Vector3(40, 60, 0.0001);
+
+/**
+ * Fades a floor material to black (before fog), chained after any
+ * onBeforeCompile it already has (the reflector's).
+ */
+function addLightPool(material: Material, pool: { value: Vector3 }) {
+  if (material.userData.lightPool) return;
+  material.userData.lightPool = true;
+  const previous = material.onBeforeCompile.bind(material);
+  const cacheKey = material.customProgramCacheKey.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    previous(shader, renderer);
+    shader.uniforms.lightPool = pool;
+    shader.vertexShader = `varying vec3 vPoolPosition;\n${shader.vertexShader}`.replace(
+      "#include <project_vertex>",
+      "#include <project_vertex>\nvPoolPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;",
+    );
+    shader.fragmentShader = `uniform vec3 lightPool;\nvarying vec3 vPoolPosition;\n${shader.fragmentShader}`.replace(
+      "#include <fog_fragment>",
+      `vec3 poolRay = vPoolPosition - cameraPosition;
+      float poolBelow = -poolRay.y / max(length(poolRay), 1e-4);
+      gl_FragColor.rgb *= (1.0 - smoothstep(lightPool.x, lightPool.y, length(vPoolPosition.xz)))
+        * smoothstep(0.0, lightPool.z, poolBelow);
+      #include <fog_fragment>`,
+    );
+  };
+  material.customProgramCacheKey = () => `${cacheKey()}|lightPool`;
+  material.needsUpdate = true;
+}
 
 export type Lightformer = { mesh: Mesh; base: number; kind: "studio" | "rim" };
 
@@ -47,6 +89,7 @@ const opacity = (mesh: Mesh, value: number) => {
 export function createStudioController(parts: StudioParts) {
   const fogColor = new Color();
   const floorColor = new Color();
+  const pool = { value: POOL_STUDIO.clone() };
   // Inputs of the last reflection bake; the cube map is re-rendered only
   // when one of them has moved.
   let baked = "";
@@ -79,7 +122,10 @@ export function createStudioController(parts: StudioParts) {
         fog.far = 32 + 23 * steppe;
       }
       floorColor.copy(parts.floorColor).lerp(STEPPE_GROUND, steppe * (1 - night));
+      pool.value.lerpVectors(POOL_STUDIO, POOL_STEPPE, steppe);
       const floor = parts.floor.material as Material & { color?: Color; mixStrength?: number };
+      // Checked every frame: the tier can swap the floor material (reflector ↔ plain).
+      addLightPool(floor, pool);
       floor.color?.copy(floorColor);
       if (floor.mixStrength !== undefined) floor.mixStrength = 6 * (1 - 0.95 * steppe);
 

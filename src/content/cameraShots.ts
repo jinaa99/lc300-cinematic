@@ -72,6 +72,11 @@ export type Look = {
    * leave the vehicle.
    */
   portrait: number;
+  /**
+   * Vertical lens shift on stacked (phone) layouts, where the text sits
+   * under the vehicle (negative: subject up). Replaces shiftY there.
+   */
+  stackY: number;
 };
 
 export type ShotKey = {
@@ -110,6 +115,7 @@ export const baseLook: Look = {
   glass: 1,
   fade: 0,
   portrait: 1,
+  stackY: -0.22,
 };
 
 /**
@@ -118,12 +124,14 @@ export const baseLook: Look = {
  */
 export const shotKeys: ShotKey[] = [
   // Hero: dark studio, low three-quarter front, rim and lamps come up on load.
+  // Full frame (no letterbox): the bars cut through the title block. On
+  // phones the vehicle sits lower, closer to the title under it.
   {
     chapter: "hero",
     at: 0,
     position: [7.4, 0.8, 8.2],
     target: [0, 0.85, 0.1],
-    look: { letterbox: 1, shiftY: 0.14 },
+    look: { shiftY: 0.14, stackY: -0.13 },
   },
   // Design: half-orbit from the front round to the flank, rising.
   {
@@ -132,7 +140,7 @@ export const shotKeys: ShotKey[] = [
     position: [3.2, 1.0, 8.8],
     target: [0, 0.9, 0.3],
     ease: "cinematic",
-    look: { letterbox: 0, shiftY: 0.08 },
+    look: { shiftY: 0.08, stackY: -0.22 },
   },
   // Distances keep the vehicle inside the right two thirds, clear of the
   // text column and of the frame edge, as it turns side-on.

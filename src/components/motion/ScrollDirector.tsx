@@ -34,17 +34,27 @@ export default function ScrollDirector() {
   const live = useExperience((s) => s.status === "live");
   const [layout, setLayout] = useState(0);
 
-  // Rebuild on layout changes (resize, fonts). Debounced.
+  // Rebuild on layout changes (resize, fonts). Debounced. On touch screens a
+  // height-only resize is the browser toolbar showing or hiding mid-scroll;
+  // chapter heights are in vh (the large viewport), so the layout hasn't
+  // moved, and rebuilding there would rebuild the timeline on every swipe.
   useEffect(() => {
     let timer = 0;
+    let width = window.innerWidth;
+    const touch = window.matchMedia("(pointer: coarse)");
     const bump = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => setLayout((n) => n + 1), 200);
     };
-    window.addEventListener("resize", bump);
+    const onResize = () => {
+      if (touch.matches && window.innerWidth === width) return;
+      width = window.innerWidth;
+      bump();
+    };
+    window.addEventListener("resize", onResize);
     void document.fonts?.ready.then(bump);
     return () => {
-      window.removeEventListener("resize", bump);
+      window.removeEventListener("resize", onResize);
       window.clearTimeout(timer);
     };
   }, []);

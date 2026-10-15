@@ -1,4 +1,5 @@
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
+import type { CSSProperties } from "react";
 import type { MediaSlot } from "@/types/content";
 import { cn } from "@/lib/cn";
 
@@ -18,12 +19,17 @@ type MediaFrameProps = {
   className?: string;
 };
 
-const showBrief = process.env.NODE_ENV !== "production";
+/** Matches the stacked (phone) layout the portrait crop was rendered for. */
+const PORTRAIT_MEDIA = "(max-width: 767px) and (orientation: portrait)";
+
+/** Development builds label the empty slot with its id and brief. */
+const labelPending = process.env.NODE_ENV !== "production";
 
 /**
  * Renders the licensed image for a media slot, or — until one is supplied —
- * an explicit pending frame. The pending state is deliberately plain: it marks
- * where the photography goes rather than imitating it.
+ * a pending frame. The pending state never imitates the missing media: in
+ * development it is labelled (slot id and brief); in production it is a
+ * plain, decorative studio tone, so visitors don't see build notes.
  */
 export function MediaFrame({
   slot,
@@ -36,6 +42,38 @@ export function MediaFrame({
   const sizing = fill ? "absolute inset-0" : "relative w-full";
   const style = fill ? undefined : { aspectRatio: slot.aspect };
   const role = poster ? "poster" : undefined;
+
+  if (slot.asset?.portrait) {
+    // Art direction: phones in portrait get their own crop. One <picture>,
+    // so the browser downloads only the source it picks.
+    const { src, alt, width, height, focus, portrait } = slot.asset;
+    const common = {
+      alt,
+      sizes,
+      loading: preload ? "eager" : "lazy",
+      fetchPriority: preload ? "high" : undefined,
+    } as const;
+    const {
+      props: { srcSet: portraitSrcSet },
+    } = getImageProps({ ...common, src: portrait.src, width: portrait.width, height: portrait.height });
+    // Its inline style (if any) is replaced by the focus variable below.
+    const { props: img } = getImageProps({ ...common, src, width, height });
+    return (
+      <div className={cn(sizing, "overflow-hidden bg-ink-950", className)} style={style} data-media-role={role}>
+        <picture>
+          <source media={PORTRAIT_MEDIA} srcSet={portraitSrcSet} />
+          <img
+            {...img}
+            alt={alt}
+            // The focus point applies to the landscape image; the portrait
+            // crop is framed for phones and stays centred.
+            className="absolute inset-0 size-full object-cover [object-position:var(--focus)] max-md:portrait:object-center"
+            style={{ "--focus": focus ?? "50% 50%" } as CSSProperties}
+          />
+        </picture>
+      </div>
+    );
+  }
 
   if (slot.asset) {
     const { src, alt, focus } = slot.asset;
@@ -54,33 +92,35 @@ export function MediaFrame({
     );
   }
 
+  // Decorative: there is no image, so nothing is announced to assistive tech.
   return (
     <div
-      className={cn(sizing, "overflow-hidden bg-ink-900", className)}
+      aria-hidden
+      className={cn(
+        sizing,
+        "overflow-hidden bg-ink-950 bg-[radial-gradient(ellipse_70%_45%_at_68%_78%,var(--color-ink-700),transparent)]",
+        className,
+      )}
       style={style}
-      role="img"
-      aria-label="Photography pending"
       data-media-slot={slot.id}
       data-media-state="pending"
       data-media-role={role}
     >
-      <CornerMarks underHeader={fill} />
-      <div
-        className={cn(
-          "absolute right-10 max-w-xs text-right md:right-14",
-          // Full-bleed frames sit under the fixed header; clear it.
-          fill ? "top-[calc(var(--spacing-header)+1.5rem)]" : "top-10 md:top-14",
-        )}
-      >
-        <p className="text-eyebrow uppercase text-silver-500">
-          Licensed photography pending · {slot.id}
-        </p>
-        {showBrief && (
-          <p className="mt-3 hidden text-xs leading-relaxed text-silver-500 md:block">
-            {slot.brief}
-          </p>
-        )}
-      </div>
+      {labelPending && (
+        <>
+          <CornerMarks underHeader={fill} />
+          <div
+            className={cn(
+              "absolute right-10 max-w-xs text-right md:right-14",
+              // Full-bleed frames sit under the fixed header; clear it.
+              fill ? "top-[calc(var(--spacing-header)+1.5rem)]" : "top-10 md:top-14",
+            )}
+          >
+            <p className="text-eyebrow uppercase text-silver-500">Media pending · {slot.id}</p>
+            <p className="mt-3 hidden text-xs leading-relaxed text-silver-500 md:block">{slot.brief}</p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

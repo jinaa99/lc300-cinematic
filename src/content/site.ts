@@ -1,5 +1,17 @@
 import { type ChapterId, chapterIds } from "@/content/copy/types";
 
+/**
+ * The contact link must be a mailto: or https: URL. A malformed value fails
+ * the build instead of shipping a broken CTA.
+ */
+function contactLink(value: string | undefined): string | null {
+  if (!value) return null;
+  if (!/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(value)) {
+    throw new Error(`NEXT_PUBLIC_CONTACT_HREF must be a mailto: or https:// URL, got "${value}".`);
+  }
+  return value;
+}
+
 export type NavItem = {
   /** Chapter id; the label comes from the locale copy (nav.items). */
   id: ChapterId;
@@ -9,22 +21,18 @@ export type NavItem = {
 
 export const siteConfig = {
   name: "LC300 Cinematic",
-  description:
-    "A cinematic, scroll-driven presentation of the Toyota Land Cruiser 300, designed as a non-commercial portfolio concept for the Mongolian market.",
-  /** Shown in the footer. The site is a non-commercial portfolio concept. */
-  disclaimer:
-    "Independent design concept. Not affiliated with, endorsed by, or sponsored by Toyota Motor Corporation. Land Cruiser is a trademark of Toyota Motor Corporation.",
   /**
    * Primary navigation. Add an item only when its section exists on the page,
    * so the header never links to nothing.
    */
   nav: chapterIds.map((id): NavItem => ({ id, href: `#${id}` })),
   /**
-   * Contact link for the closing CTA (mailto: or a portfolio page). Null
-   * until provided; the section then says contact details will follow.
-   * Never a sales or lead form: the site is non-commercial.
+   * Contact link for the closing CTA (mailto: or a portfolio page), from
+   * NEXT_PUBLIC_CONTACT_HREF. Null until provided; the section then says
+   * contact details will follow. Never a sales or lead form: the site is
+   * non-commercial.
    */
-  contactHref: null as string | null,
+  contactHref: contactLink(process.env.NEXT_PUBLIC_CONTACT_HREF),
   /**
    * Show the manufacturer badges on the 3D model (nodes with extras.badge in
    * public/models/lc300.glb). Badges on the vehicle depict the product; they
@@ -33,8 +41,9 @@ export const siteConfig = {
   showBadges: true,
   /**
    * Required attribution for the 3D model (CC BY-NC-SA 4.0). The footer
-   * shows it once `author` and `url` are filled. Keep it in sync with
-   * public/models/lc300.LICENSE.txt and docs/ASSETS.md.
+   * shows it once `author` and `url` are filled. The connecting phrases
+   * (based on, changes) are translated in the copy (footer). Keep it in sync
+   * with public/models/lc300.LICENSE.txt and docs/ASSETS.md.
    */
   modelCredit: {
     title: "2022 Toyota Land Cruiser 300 VX.R",
@@ -42,9 +51,8 @@ export const siteConfig = {
     url: "https://sketchfab.com/3d-models/2022-toyota-land-cruiser-300-vxr-3dfcd7904cdb4e52afa3ce59fa59e1a5" as string | null,
     license: "CC BY-NC-SA 4.0",
     licenseUrl: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-    /** Upstream credit stated on the model page. */
-    basedOn: "based on a Racing Master 3D model; credits: GM25",
-    changes: "converted and modified for this site",
+    /** Full attribution and licence notice, shipped next to the GLB. */
+    noticeUrl: "/models/lc300.LICENSE.txt",
   },
 } as const;
 

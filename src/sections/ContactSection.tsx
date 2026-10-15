@@ -1,13 +1,13 @@
 import { StickyChapter } from "@/components/layout/StickyChapter";
-import { getCopy } from "@/content/copy";
+import { getServerCopy } from "@/content/copy/server";
 import { siteConfig } from "@/content/site";
 
 /**
  * Closing call to action. The site is a non-commercial portfolio concept:
  * the CTA is a contact link for the project, never a sales or lead form.
  */
-export function ContactSection() {
-  const copy = getCopy().contact;
+export async function ContactSection() {
+  const copy = (await getServerCopy()).contact;
   const { contactHref } = siteConfig;
   return (
     <StickyChapter id="contact" copy={copy} length={150}>

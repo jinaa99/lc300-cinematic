@@ -1,7 +1,6 @@
 "use client";
 
 import { useProgress } from "@react-three/drei";
-import { getCopy } from "@/content/copy";
 import { useExperience } from "@/lib/experience/store";
 
 /**
@@ -10,7 +9,7 @@ import { useExperience } from "@/lib/experience/store";
  * above it the whole time. Holds at 100% while shaders compile, and fades
  * out once the experience is live.
  */
-export default function LoadingIndicator() {
+export default function LoadingIndicator({ label }: { label: string }) {
   const { progress } = useProgress();
   const live = useExperience((s) => s.status === "live");
   const percent = Math.round(progress);
@@ -19,7 +18,7 @@ export default function LoadingIndicator() {
     <div
       className={`pointer-events-none fixed inset-x-0 bottom-0 z-40 bg-ink-950 transition-opacity duration-1000 ease-cinematic ${live ? "opacity-0" : "opacity-100"}`}
       role="progressbar"
-      aria-label={getCopy().loading3d}
+      aria-label={label}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percent}

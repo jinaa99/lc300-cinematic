@@ -1,9 +1,9 @@
 import { StickyChapter } from "@/components/layout/StickyChapter";
-import { getCopy } from "@/content/copy";
+import { getServerCopy } from "@/content/copy/server";
 
 /** Wheels, off-road, Mongolian tracks. 3D chapter with the longest scroll. */
-export function TerrainSection() {
-  const copy = getCopy().terrain;
+export async function TerrainSection() {
+  const copy = (await getServerCopy()).terrain;
   return (
     <StickyChapter id="terrain" copy={copy} length={250}>
       <ul className="mt-12 grid max-w-copy grid-cols-1 gap-x-10 gap-y-4 border-t border-ink-700 pt-8 sm:grid-cols-2">
