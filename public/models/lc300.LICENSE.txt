@@ -1,0 +1,17 @@
+lc300.glb
+
+Adapted from "2022 Toyota Land Cruiser 300 VX.R" by Ddiaz Design (@ddiaz-design)
+Source: https://sketchfab.com/3d-models/2022-toyota-land-cruiser-300-vxr-3dfcd7904cdb4e52afa3ce59fa59e1a5
+The source states: "Based on a Racing Master 3d model".
+Credits: https://www.facebook.com/p/GM25-100042237200164/
+Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+International (CC BY-NC-SA 4.0): https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Changes: converted from FBX to glTF, re-oriented and re-pivoted, textures
+repacked (ORM, normal-map convention) and compressed (KTX2, Meshopt), badges
+split into separate nodes, tyre sidewall lettering removed, materials
+adjusted.
+
+This adapted model is distributed under the same licence (CC BY-NC-SA 4.0).
+Non-commercial use only. The licence grants no trademark rights; Toyota,
+Land Cruiser and related marks belong to Toyota Motor Corporation.

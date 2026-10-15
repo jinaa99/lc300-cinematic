@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Third-party runtime files copied from node_modules on install
+    // (scripts/copy-decoders.mjs); git-ignored, not our code.
+    "public/basis/**",
+    "public/detect-gpu/**",
   ]),
 ]);
 

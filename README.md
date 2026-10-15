@@ -1,8 +1,8 @@
 # LC300 Cinematic
 
-A cinematic, scroll-driven presentation of the Toyota Land Cruiser 300, built as a concept for a Mongolian vehicle importer.
+A cinematic, scroll-driven presentation of the Toyota Land Cruiser 300, built as a non-commercial portfolio concept, imagined for the Mongolian market.
 
-Independent design concept. Not affiliated with Toyota Motor Corporation.
+Independent design concept. Not affiliated with Toyota Motor Corporation. Not for commercial use: the 3D model is licensed CC BY-NC-SA 4.0 (see `docs/ASSETS.md`).
 
 ## Stack
 
@@ -31,7 +31,8 @@ src/
     layout/       Site chrome: header, footer
     media/        MediaFrame: licensed image or explicit pending frame
     ui/           Small typographic primitives
-  content/        Typed site copy, media slots, verified specs
+  content/        Media slots, verified specs, scene keyframes, paint finishes
+    copy/         Site copy per locale (en, mn), typed by SiteCopy
   types/          Content contracts (provenance and licensing required)
   hooks/          Client hooks (reduced motion, …)
   lib/            Utilities; motion/ holds JS motion tokens
@@ -45,7 +46,7 @@ docs/
 
 ## Content rules
 
-- No vehicle specification, price, inventory, importer detail or testimonial appears unless it is sourced. `VehicleSpec` requires a `source` that records the market it applies to.
+- No vehicle specification, price, inventory, dealer detail or testimonial appears unless it is sourced. `VehicleSpec` requires a `source` that records the market it applies to.
 - No media appears unless it is licensed. `ImageAsset` requires a `license`. Until a file is supplied, `MediaFrame` renders a labelled pending frame instead of a stand-in visual.
 - The site is `noindex` while it remains a concept.
 

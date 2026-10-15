@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 3D source files (large; provenance is recorded in docs/ASSETS.md)
+/assets-src/
+
+# KTX2 transcoder, copied from three on install (scripts/copy-decoders.mjs)
+/public/basis/
+# detect-gpu benchmark tables, copied on install (scripts/copy-decoders.mjs)
+/public/detect-gpu/

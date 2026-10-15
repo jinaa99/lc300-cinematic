@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>LC300 model render</title>
+    <style>
+      html, body { margin: 0; background: #000; }
+      canvas { display: block; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/three/build/three.module.js",
+          "three/addons/": "/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      /*
+       * Review renderer for the model pipeline (driven by scripts/model/render.mjs).
+       * Neutral studio lighting only; this is not the site's art direction.
+       */
+      import * as THREE from "three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
+      import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+      import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer.setPixelRatio(1);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.0;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.body.appendChild(renderer.domElement);
+
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      const studio = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color("#1b1b20");
+      scene.environment = studio;
+
+      const key = new THREE.DirectionalLight(0xffffff, 2.2);
+      key.position.set(5, 9, 6);
+      key.castShadow = true;
+      key.shadow.mapSize.set(4096, 4096);
+      Object.assign(key.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 1, far: 30 });
+      key.shadow.bias = -0.0002;
+      scene.add(key);
+
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(30, 64),
+        new THREE.MeshStandardMaterial({ color: "#2a2a30", roughness: 0.85 }),
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.05, 100);
+      let model = null;
+
+      const ktx2 = new KTX2Loader().setTranscoderPath("/three/examples/jsm/libs/basis/").detectSupport(renderer);
+      const loader = new GLTFLoader().setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
+
+      function setNormalMode(mode) {
+        // "pipeline": as built. "source": undo the per-texture green flips
+        // (= the maps exactly as authored). "flip-all": a blanket DirectX→OpenGL
+        // flip applied to every map.
+        model.traverse((o) => {
+          if (!o.isMesh) return;
+          for (const m of [o.material].flat()) {
+            if (!m.normalMap) continue;
+            m.userData.baseNormalScale ??= m.normalScale.clone();
+            const flipped = Boolean(m.userData.normalFlippedY);
+            const sign = mode === "pipeline" ? 1 : mode === "source" ? (flipped ? -1 : 1) : flipped ? 1 : -1;
+            m.normalScale.set(m.userData.baseNormalScale.x, m.userData.baseNormalScale.y * sign);
+          }
+        });
+      }
+
+      /** OpenGL (+Y up) normal map of a raised dome and a raised bar: a known-correct reference. */
+      function referenceNormalMap(n = 256) {
+        const data = new Uint8Array(n * n * 4);
+        const h = (x, y) => {
+          const dome = Math.max(0, 1 - ((x - 0.5) ** 2 + (y - 0.62) ** 2) / 0.06);
+          const bar = x > 0.2 && x < 0.8 && y > 0.12 && y < 0.24 ? 1 : 0;
+          return 0.12 * Math.sqrt(dome) + 0.03 * bar;
+        };
+        const e = 1 / n;
+        for (let j = 0; j < n; j++) {
+          for (let i = 0; i < n; i++) {
+            const x = i / n;
+            const y = j / n; // DataTexture rows start at the bottom: y is up
+            const nx = -(h(x + e, y) - h(x - e, y)) / (2 * e);
+            const ny = -(h(x, y + e) - h(x, y - e)) / (2 * e);
+            const l = Math.hypot(nx, ny, 1);
+            const k = (j * n + i) * 4;
+            data[k] = (nx / l * 0.5 + 0.5) * 255;
+            data[k + 1] = (ny / l * 0.5 + 0.5) * 255;
+            data[k + 2] = (1 / l * 0.5 + 0.5) * 255;
+            data[k + 3] = 255;
+          }
+        }
+        const tex = new THREE.DataTexture(data, n, n);
+        tex.needsUpdate = true;
+        return tex;
+      }
+
+      window.api = {
+        async load(url) {
+          const gltf = await loader.loadAsync(url);
+          model = gltf.scene;
+          let meshes = 0;
+          model.traverse((o) => {
+            if (o.isMesh) {
+              meshes++;
+              o.castShadow = true;
+              o.receiveShadow = true;
+            }
+          });
+          scene.add(model);
+          renderer.compile(scene, camera);
+          const gl = renderer.getContext();
+          const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+          return {
+            meshes,
+            renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : "unknown",
+            ktx2Target: ktx2.workerConfig,
+          };
+        },
+
+        view({ position, target, fov = 30, width = 1600, height = 900, normals = "pipeline", badges = true, grazing = false }) {
+          renderer.setSize(width, height);
+          camera.aspect = width / height;
+          camera.fov = fov;
+          camera.position.fromArray(position);
+          const aim = new THREE.Vector3().fromArray(target);
+          camera.lookAt(aim);
+          camera.updateMatrixWorld();
+          camera.updateProjectionMatrix();
+          // Grazing: weak environment, hard key from the camera's upper left,
+          // so surface relief from normal maps dominates.
+          scene.environmentIntensity = grazing ? 0.12 : 1;
+          if (grazing) {
+            const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+            const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+            const back = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2);
+            key.position.copy(aim).addScaledVector(right, -3).addScaledVector(up, 3).addScaledVector(back, 1.2);
+            key.target.position.copy(aim);
+            key.intensity = 4;
+          } else {
+            key.position.set(5, 9, 6);
+            key.target.position.set(0, 0, 0);
+            key.intensity = 2.2;
+          }
+          key.target.updateMatrixWorld();
+          setNormalMode(normals);
+          model.traverse((o) => {
+            if (o.userData.badge) o.visible = badges;
+          });
+          renderer.info.reset();
+          renderer.render(scene, camera);
+          return {
+            image: renderer.domElement.toDataURL("image/png"),
+            drawCalls: renderer.info.render.calls,
+            triangles: renderer.info.render.triangles,
+          };
+        },
+
+        /** A normal map on a flat grey plane, lit by a grazing light from the upper left. */
+        async normalQuad({ url, flipGreen, size = 360 }) {
+          const tex = url === "reference" ? referenceNormalMap() : await new THREE.TextureLoader().loadAsync(url);
+          tex.colorSpace = THREE.NoColorSpace;
+          const quadScene = new THREE.Scene();
+          quadScene.background = new THREE.Color("#000");
+          const light = new THREE.DirectionalLight(0xffffff, 3.2);
+          light.position.set(-1, 1, 0.45);
+          quadScene.add(light, new THREE.AmbientLight(0xffffff, 0.25));
+          const plane = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 2),
+            new THREE.MeshStandardMaterial({
+              color: "#9a9ca1",
+              roughness: 0.55,
+              metalness: 0,
+              normalMap: tex,
+              normalScale: new THREE.Vector2(1, flipGreen ? -1 : 1),
+            }),
+          );
+          quadScene.add(plane);
+          const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+          cam.position.z = 2;
+          renderer.setSize(size, size);
+          renderer.toneMapping = THREE.NoToneMapping;
+          renderer.render(quadScene, cam);
+          renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          const image = renderer.domElement.toDataURL("image/png");
+          tex.dispose();
+          plane.material.dispose();
+          return image;
+        },
+      };
+      window.ready = true;
+    </script>
+  </body>
+</html>

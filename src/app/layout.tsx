@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight, Unbounded } from "next/font/google";
+import { ExperienceRoot } from "@/components/experience/ExperienceRoot";
+import { defaultLocale, getCopy } from "@/content/copy";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { siteConfig, siteUrl } from "@/content/site";
@@ -35,7 +37,7 @@ export const metadata: Metadata = {
     description: siteConfig.description,
     locale: "en",
   },
-  // Concept build: keep it out of search indexes until a real importer and
+  // Concept build: keep it out of search indexes while it is a portfolio concept with
   // licensed assets are in place.
   robots: { index: false, follow: false },
 };
@@ -47,16 +49,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${unbounded.variable} ${interTight.variable}`}>
+    <html lang={defaultLocale} className={`${unbounded.variable} ${interTight.variable}`}>
       <body>
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:bg-ink-800 focus:px-4 focus:py-3 focus:text-sm focus:text-silver-50"
         >
-          Skip to content
+          {getCopy().skipToContent}
         </a>
+        {/* Fixed 3D layer behind the page; renders nothing without JS or on the static tier. */}
+        <ExperienceRoot />
         <SiteHeader />
-        <main id="main">{children}</main>
+        <main id="main" className="relative z-10">
+          {children}
+        </main>
         <SiteFooter />
       </body>
     </html>

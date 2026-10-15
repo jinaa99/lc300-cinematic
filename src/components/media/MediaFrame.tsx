@@ -10,6 +10,11 @@ type MediaFrameProps = {
   sizes?: string;
   /** Preload above-the-fold imagery (the hero). */
   preload?: boolean;
+  /**
+   * Marks this frame as the poster of a 3D chapter: it fades out once the
+   * experience layer is live (globals.css) and back in if it fails.
+   */
+  poster?: boolean;
   className?: string;
 };
 
@@ -25,15 +30,17 @@ export function MediaFrame({
   fill = false,
   sizes = "100vw",
   preload = false,
+  poster = false,
   className,
 }: MediaFrameProps) {
   const sizing = fill ? "absolute inset-0" : "relative w-full";
   const style = fill ? undefined : { aspectRatio: slot.aspect };
+  const role = poster ? "poster" : undefined;
 
   if (slot.asset) {
     const { src, alt, focus } = slot.asset;
     return (
-      <div className={cn(sizing, "overflow-hidden bg-ink-900", className)} style={style}>
+      <div className={cn(sizing, "overflow-hidden bg-ink-900", className)} style={style} data-media-role={role}>
         <Image
           src={src}
           alt={alt}
@@ -55,6 +62,7 @@ export function MediaFrame({
       aria-label="Photography pending"
       data-media-slot={slot.id}
       data-media-state="pending"
+      data-media-role={role}
     >
       <CornerMarks underHeader={fill} />
       <div
